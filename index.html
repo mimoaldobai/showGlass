@@ -3,16 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>تجربة النظارات بالواقع المعزز</title>
+    <title>تجربة الواقع المعزز - نظارات</title>
 
-    <!-- مكتبة Three.js -->
+    <!-- مكتبات Three.js و Mediapipe FaceMesh -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-core"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-converter"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl"></script>
     
-    <!-- GLTFLoader لتحميل النظارات -->
+    <!-- تحميل GLTFLoader لتحميل النموذج -->
     <script src="https://cdn.jsdelivr.net/npm/three/examples/js/loaders/GLTFLoader.js"></script>
 
     <style>
@@ -27,7 +27,7 @@
             top: 0;
             left: 0;
             width: 100%;
-            height: auto;
+            height: 100%;
             object-fit: cover;
             z-index: -1;
         }
@@ -39,25 +39,31 @@
             height: 100%;
             pointer-events: none;
         }
-        #glasses-preview {
-            width: 150px;
-            cursor: pointer;
+        #toggle-glasses {
             position: fixed;
             bottom: 20px;
             left: 50%;
             transform: translateX(-50%);
+            padding: 10px 20px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+            border-radius: 5px;
         }
     </style>
 </head>
 <body>
 
     <video id="video" autoplay playsinline></video>
-    <img id="glasses-preview" src="glasses_preview.png" alt="اضغط لعرض النظارات">
+    <button id="toggle-glasses">عرض النظارات</button>
 
     <script>
         let scene, camera, renderer, glasses;
         let video = document.getElementById("video");
-        let glassesPreview = document.getElementById("glasses-preview");
+        let toggleButton = document.getElementById("toggle-glasses");
+        let glassesVisible = false;
 
         // تشغيل كاميرا المستخدم
         async function startCamera() {
@@ -76,12 +82,12 @@
             const light = new THREE.AmbientLight(0xffffff, 1);
             scene.add(light);
 
-            // تحميل نموذج النظارات
+            // تحميل نموذج النظارات glass1.glb من المجلد الجذر
             const loader = new THREE.GLTFLoader();
             loader.load("glass1.glb", (gltf) => {
                 glasses = gltf.scene;
                 glasses.scale.set(2, 2, 2); // ضبط الحجم
-                glasses.visible = false; // إخفاؤها حتى يتم النقر عليها
+                glasses.visible = false; // إخفاؤها عند البداية
                 scene.add(glasses);
             });
 
@@ -94,7 +100,7 @@
             const detect = async () => {
                 const predictions = await model.estimateFaces({ input: video });
 
-                if (predictions.length > 0 && glasses) {
+                if (predictions.length > 0 && glasses && glassesVisible) {
                     const keypoints = predictions[0].scaledMesh;
                     const nose = keypoints[168]; // موقع الأنف
 
@@ -109,10 +115,12 @@
             detect();
         }
 
-        // عند الضغط على النظارات، يتم تفعيلها
-        glassesPreview.addEventListener("click", () => {
+        // عند الضغط على الزر، يتم تشغيل أو إيقاف عرض النظارات
+        toggleButton.addEventListener("click", () => {
             if (glasses) {
-                glasses.visible = true;
+                glassesVisible = !glassesVisible;
+                glasses.visible = glassesVisible;
+                toggleButton.textContent = glassesVisible ? "إخفاء النظارات" : "عرض النظارات";
             }
         });
 
