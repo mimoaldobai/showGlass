@@ -1,113 +1,149 @@
 <!DOCTYPE html>
 <html lang="ar">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>تجربة النظارات افتراضيًا | Virtual Try-On</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>تجربة النظارات افتراضيًا | Virtual Try-On</title>
 
-    <!-- مكتبة Three.js -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-core"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-converter"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/facemesh"></script>
-    
-    <!-- مكتبة GLTFLoader لتحميل نموذج النظارات -->
-    <script src="https://cdn.jsdelivr.net/npm/three/examples/js/loaders/GLTFLoader.js"></script>
+  <!-- استدعاء مكتبة Three.js -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <!-- استدعاء مكتبات TensorFlow.js ونموذج FaceMesh -->
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-core"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-converter"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/facemesh"></script>
+  <!-- تحميل GLTFLoader لتحميل نموذج النظارات -->
+  <script src="https://cdn.jsdelivr.net/npm/three/examples/js/loaders/GLTFLoader.js"></script>
 
-    <style>
-        body {
-            margin: 0;
-            font-family: Arial, sans-serif;
-            text-align: center;
-            background-color: #f9f9f9;
-        }
-
-        header {
-            background-color: #333;
-            color: white;
-            padding: 15px;
-            font-size: 1.5em;
-        }
-
-        video {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: auto;
-        }
-
-        canvas {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-        }
-    </style>
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      text-align: center;
+      background-color: #f9f9f9;
+      overflow: hidden;
+    }
+    header {
+      background-color: #333;
+      color: white;
+      padding: 15px;
+      font-size: 1.5em;
+      position: relative;
+      z-index: 2;
+    }
+    video {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: auto;
+      z-index: 1;
+    }
+    canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      z-index: 2;
+    }
+  </style>
 </head>
 <body>
+  <header>تجربة النظارات افتراضيًا (Virtual Try-On)</header>
+  <!-- بث كاميرا المستخدم -->
+  <video id="video" autoplay playsinline muted></video>
 
-    <header>تجربة النظارات افتراضيًا (Virtual Try-On)</header>
+  <script>
+    let scene, camera, renderer, glasses;
+    const video = document.getElementById("video");
 
-    <!-- كاميرا المستخدم -->
-    <video id="video" autoplay playsinline></video>
-
-    <script>
-        let scene, camera, renderer, glasses;
-        let video = document.getElementById("video");
-
-        async function startCamera() {
-            const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-            video.srcObject = stream;
-        }
-
-        function initThreeJS() {
-            scene = new THREE.Scene();
-            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-            renderer = new THREE.WebGLRenderer({ alpha: true });
-            renderer.setSize(window.innerWidth, window.innerHeight);
-            document.body.appendChild(renderer.domElement);
-
-            let light = new THREE.AmbientLight(0xffffff, 1);
-            scene.add(light);
-
-            // تحميل نموذج النظارات
-            let loader = new THREE.GLTFLoader();
-            loader.load("glass1.glb", (gltf) => {
-                glasses = gltf.scene;
-                glasses.scale.set(5, 5, 5); // ضبط الحجم
-                scene.add(glasses);
-            });
-
-            camera.position.z = 5;
-        }
-
-        async function loadFaceMesh() {
-            const model = await facemesh.load();
-            const detect = async () => {
-                const predictions = await model.estimateFaces({ input: video });
-
-                if (predictions.length > 0 && glasses) {
-                    const keypoints = predictions[0].scaledMesh;
-                    const nose = keypoints[168]; // موضع الأنف
-
-                    // تحديث موقع النظارات بناءً على الأنف
-                    glasses.position.set(nose[0] / 100, -nose[1] / 100, -3);
-                }
-
-                renderer.render(scene, camera);
-                requestAnimationFrame(detect);
-            };
-            detect();
-        }
-
-        startCamera().then(() => {
-            initThreeJS();
-            loadFaceMesh();
+    // تشغيل كاميرا المستخدم
+    async function startCamera() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } });
+        video.srcObject = stream;
+        return new Promise(resolve => {
+          video.onloadedmetadata = () => {
+            video.play();
+            resolve();
+          };
         });
-    </script>
+      } catch (error) {
+        console.error("Error accessing camera:", error);
+      }
+    }
 
+    // تهيئة مشهد Three.js والكاميرا والتحميل النموذج ثلاثي الأبعاد
+    function initThreeJS() {
+      scene = new THREE.Scene();
+      camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+      renderer = new THREE.WebGLRenderer({ alpha: true });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setClearColor(0x000000, 0); // خلفية شفافة
+      document.body.appendChild(renderer.domElement);
+      
+      // إضافة ضوء محيط
+      const ambientLight = new THREE.AmbientLight(0xffffff, 1);
+      scene.add(ambientLight);
+      
+      // تحميل نموذج النظارات
+      const loader = new THREE.GLTFLoader();
+      loader.load("glass1.glb", (gltf) => {
+        glasses = gltf.scene;
+        // تعديل الحجم بما يناسب التطبيق؛ قد تحتاج لتجربة أرقام أخرى
+        glasses.scale.set(0.5, 0.5, 0.5);
+        scene.add(glasses);
+      }, undefined, error => {
+        console.error("Error loading model:", error);
+      });
+      
+      // وضع الكاميرا في موضع مبدئي مناسب
+      camera.position.z = 5;
+    }
+
+    // تحميل نموذج FaceMesh ومعالجة الإحداثيات
+    async function loadFaceMesh() {
+      const model = await facemesh.load();
+      async function detect() {
+        const predictions = await model.estimateFaces({ input: video });
+        if (predictions.length > 0 && glasses) {
+          const keypoints = predictions[0].scaledMesh;
+          // اختيار نقطة الأنف، يمكن تجربة نقاط أخرى لتحسين المحاذاة
+          const nose = keypoints[168] || keypoints[1];
+          // الحصول على أبعاد الفيديو
+          const videoWidth = video.videoWidth;
+          const videoHeight = video.videoHeight;
+          
+          // تحويل إحداثيات نقطة الأنف من نظام البكسل إلى نظام Three.js
+          // نقوم بتوسيط الإحداثيات حول منتصف الفيديو ثم نقسم على نصف العرض/الارتفاع مع تعديل نسبة العرض
+          const aspect = window.innerWidth / window.innerHeight;
+          const x = ((nose[0] - videoWidth / 2) / (videoWidth / 2)) * aspect;
+          const y = -((nose[1] - videoHeight / 2) / (videoHeight / 2));
+          
+          // تعيين الموضع الجديد للنموذج
+          glasses.position.set(x, y, 0);
+          // يمكن إضافة تدوير (rotation) بناءً على معالم إضافية لتحسين المحاذاة
+          
+          // طباعة الإحداثيات للتصحيح
+          console.log("Nose coords (Three.js):", x, y);
+        }
+        renderer.render(scene, camera);
+        requestAnimationFrame(detect);
+      }
+      detect();
+    }
+
+    // تشغيل الكاميرا والتهيئة ثم تحميل FaceMesh
+    startCamera().then(() => {
+      initThreeJS();
+      loadFaceMesh();
+    });
+
+    // إعادة ضبط حجم المشهد عند تغيير حجم النافذة
+    window.addEventListener("resize", () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+  </script>
 </body>
 </html>
