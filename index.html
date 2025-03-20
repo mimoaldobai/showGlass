@@ -78,7 +78,7 @@
 
             // تحميل نموذج النظارات
             const loader = new THREE.GLTFLoader();
-            loader.load("glasses.glb", (gltf) => {
+            loader.load("glass1.glb", (gltf) => {
                 glasses = gltf.scene;
                 glasses.scale.set(2, 2, 2); // ضبط الحجم
                 glasses.visible = false; // إخفاؤها حتى يتم النقر عليها
