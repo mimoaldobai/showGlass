@@ -1,96 +1,102 @@
 <!DOCTYPE html>
-<html lang="ar">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>تجربة نظارات الواقع المعزز</title>
-
-    <!-- مكتبات Three.js و AR.js -->
+    <title>Virtual Glasses Try-On</title>
+    <script src="https://cdn.jsdelivr.net/npm/face-api.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/ar.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three/examples/js/loaders/GLTFLoader.js"></script>
-
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128/examples/js/loaders/GLTFLoader.js"></script>
     <style>
-        body { margin: 0; overflow: hidden; }
-        video { position: fixed; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; }
-        button {
-            position: fixed;
-            bottom: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            padding: 10px 20px;
-            background: blue;
-            color: white;
-            border: none;
-            cursor: pointer;
-            font-size: 16px;
-            border-radius: 5px;
+        body {
+            margin: 0;
+            overflow: hidden;
+            text-align: center;
+        }
+        video {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            z-index: -1;
+        }
+        canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
         }
     </style>
 </head>
 <body>
-
-    <video id="video" autoplay playsinline></video>
-    <button id="toggle-glasses">عرض النظارات</button>
-
+    <video id="video" autoplay muted playsinline></video>
     <script>
-        let scene, camera, renderer, glasses, arToolkitContext;
-        let glassesVisible = false;
+        let scene, camera, renderer, glasses;
+        let video = document.getElementById("video");
 
-        async function startCamera() {
-            const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-            document.getElementById("video").srcObject = stream;
+        async function setupCamera() {
+            const stream = await navigator.mediaDevices.getUserMedia({ video: {} });
+            video.srcObject = stream;
+            return new Promise((resolve) => {
+                video.onloadedmetadata = () => resolve(video);
+            });
         }
 
-        function initThreeJS() {
-            scene = new THREE.Scene();
-            camera = new THREE.Camera();
-            scene.add(camera);
+        async function loadFaceModel() {
+            await faceapi.nets.tinyFaceDetector.loadFromUri("https://justadudewhohacks.github.io/face-api.js/models");
+            await faceapi.nets.faceLandmark68Net.loadFromUri("https://justadudewhohacks.github.io/face-api.js/models");
+        }
 
+        function setupThreeJS() {
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
             renderer = new THREE.WebGLRenderer({ alpha: true });
             renderer.setSize(window.innerWidth, window.innerHeight);
             document.body.appendChild(renderer.domElement);
-
+            
             const light = new THREE.AmbientLight(0xffffff, 1);
             scene.add(light);
 
-            // تحميل نموذج النظارات
+            camera.position.z = 1.5;
+
             const loader = new THREE.GLTFLoader();
             loader.load("glass1.glb", (gltf) => {
                 glasses = gltf.scene;
-                glasses.scale.set(1, 1, 1);
-                glasses.position.set(0, 0, -2);
-                glasses.visible = false;
+                glasses.scale.set(0.02, 0.02, 0.02);
                 scene.add(glasses);
             });
-
-            arToolkitContext = new THREEx.ArToolkitContext({
-                cameraParametersUrl: "https://raw.githubusercontent.com/jeromeetienne/AR.js/1.7.2/data/data/camera_para.dat",
-                detectionMode: "mono",
-            });
-
-            arToolkitContext.init(() => {
-                camera.projectionMatrix.copy(arToolkitContext.getProjectionMatrix());
-            });
-
-            animate();
         }
 
-        function animate() {
-            requestAnimationFrame(animate);
-            renderer.render(scene, camera);
-        }
+        async function detectFace() {
+            const detection = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks();
+            if (detection) {
+                const landmarks = detection.landmarks.positions;
+                const leftEye = landmarks[36]; // الزاوية الخارجية للعين اليسرى
+                const rightEye = landmarks[45]; // الزاوية الخارجية للعين اليمنى
+                const nose = landmarks[30]; // منتصف الأنف
 
-        document.getElementById("toggle-glasses").addEventListener("click", () => {
-            if (glasses) {
-                glassesVisible = !glassesVisible;
-                glasses.visible = glassesVisible;
-                document.getElementById("toggle-glasses").textContent = glassesVisible ? "إخفاء النظارات" : "عرض النظارات";
+                // حساب موقع النظارات بناءً على العينين
+                const glassesX = (leftEye.x + rightEye.x) / 2 - video.videoWidth / 2;
+                const glassesY = (leftEye.y + rightEye.y) / 2 - video.videoHeight / 2;
+                const distance = Math.hypot(rightEye.x - leftEye.x, rightEye.y - leftEye.y);
+
+                if (glasses) {
+                    glasses.position.set(glassesX / 300, -glassesY / 300, -1);
+                    glasses.scale.set(distance / 50, distance / 50, distance / 50);
+                }
             }
-        });
+            requestAnimationFrame(detectFace);
+        }
 
-        startCamera().then(initThreeJS);
+        async function main() {
+            await setupCamera();
+            await loadFaceModel();
+            setupThreeJS();
+            detectFace();
+        }
+
+        main();
     </script>
-
 </body>
 </html>
