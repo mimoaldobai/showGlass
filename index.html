@@ -112,9 +112,21 @@
             
             // استبدال الأرقام بنماذج أو صور من مجلد المشروع
             container.innerHTML = `
-                <iframe id="fitmixIframe" width="100%" height="500px" allow="camera" 
-                    src="models/tryon.html?glass1=glass1.png&glass2=glass2.glb&gender=${gender}&pd=${pd}" 
-                    scrolling="no" frameborder="0" style="border-radius: 10px;"></iframe>`;
+<iframe id="fitmixIframe" width="100%" height="500px" allow="camera"
+    src="data:text/html;charset=utf-8,
+    <html>
+    <head>
+        <script type='module' src='https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js'></script>
+    </head>
+    <body style='text-align:center; background-color:#f4f4f4;'>
+        <h3>تجربة النظارات</h3>
+        <img src='glass.png' alt='نظارة صورة' style='width: 200px;'><br><br>
+        <model-viewer src='glass1.glb' alt='نظارة ثلاثية الأبعاد' auto-rotate camera-controls style='width:100%; height:400px;'></model-viewer>
+    </body>
+    </html>"
+    scrolling="no" frameborder="0" style="border-radius: 10px;">
+</iframe>
+
             
             container.style.display = "block";
             document.getElementById("sizeContainer").style.display = "none";
