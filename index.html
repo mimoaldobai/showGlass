@@ -110,17 +110,23 @@
         function launchTryOn(gender, pd) {
             var container = document.getElementById("virtual-try-on");
             
-            // استبدال رابط الـ iframe بصور أو نماذج موجودة في مجلد المشروع الخاص بك
-            // في هذه الحالة، نستخدم نموذج .glb أو صورة glass.png
+            // استبدال الأرقام بنماذج أو صور من مجلد المشروع
             container.innerHTML = `
-                <div style="text-align:center;">
-                    <h3>تجربة نظارتك الافتراضية</h3>
-                    <!-- إذا كان لديك ملف .glb (نموذج ثلاثي الأبعاد) -->
-                    <model-viewer src="glass1.glb" alt="نظارة ثلاثية الأبعاد" auto-rotate camera-controls width="100%" height="500px"></model-viewer>
-                    <!-- أو إذا كنت تستخدم صورة ثابتة -->
-                    <!-- <img src="glass.png" alt="نظارة شمسية" width="300px" /> -->
-                </div>`;
-            
+                <iframe id="fitmixIframe" width="100%" height="500px" allow="camera"
+    src="data:text/html;charset=utf-8,
+    <html>
+    <head>
+        <script type='module' src='https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js'></script>
+    </head>
+    <body style='text-align:center; background-color:#f4f4f4;'>
+        <h3>تجربة النظارات</h3>
+        <img src='glass.png' alt='نظارة صورة' style='width: 200px;'><br><br>
+        <model-viewer src='glass1.glb' alt='نظارة ثلاثية الأبعاد' auto-rotate camera-controls style='width:100%; height:400px;'></model-viewer>
+            </body>
+    </html>"
+    scrolling="no" frameborder="0" style="border-radius: 10px;">
+</iframe>
+
             container.style.display = "block";
             document.getElementById("sizeContainer").style.display = "none";
         }
@@ -128,3 +134,4 @@
 
 </body>
 </html>
+
