@@ -1,75 +1,112 @@
-
 <!DOCTYPE html>
 <html lang="ar">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>تجربة النظارات الافتراضية</title>
+    <script src="https://cdn.fittingbox.com/fitmix/latest/fitmix.js"></script>
     <style>
         body {
             font-family: Arial, sans-serif;
             text-align: center;
-            background-color: #f4f4f4;
-            padding: 20px;
+            background-color: #f8f8f8;
         }
-        .container {
-            background: white;
-            padding: 20px;
+        #fitmixContainer {
+            width: 100%;
+            height: 400px;
+            background: #ddd;
+            margin: 20px auto;
+        }
+        .catalogContainer {
+            display: flex;
+            overflow-x: auto;
+            padding: 10px;
+            background: #fff;
+        }
+        .frameEntry {
+            margin: 10px;
+            cursor: pointer;
+            text-align: center;
+        }
+        .imageQuarter {
+            width: 120px;
+            height: auto;
             border-radius: 10px;
-            box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.1);
-            display: inline-block;
         }
-        .button {
-            margin-top: 10px;
-            padding: 10px 20px;
-            background-color: #007BFF;
+        .buttonTryOn {
+            background: #007bff;
             color: white;
-            border: none;
+            padding: 5px 10px;
+            margin-top: 5px;
             border-radius: 5px;
             cursor: pointer;
-            font-size: 16px;
-        }
-        .button:hover {
-            background-color: #0056b3;
-        }
-        #virtual-try-on {
-            margin-top: 20px;
-            display: none; /* إخفاء الـ iframe في البداية */
-            position: relative;
-            width: 100%;
-            height: 500px;
         }
     </style>
-   
 </head>
 <body>
 
-<div class="text-wrapper px-0">
-    <h3 style="font-size: 24px; line-height: 1.5;">
-        <span style="color: #333333;">
-            Check out our <strong>live & ultra-realistic Virtual Try-On technology </strong>with the <strong>Size Guarantee</strong>
-        </span>
-    </h3>
-    <!-- تم استبدال النقاط الثلاث بمعرفات صحيحة: 728243 و613102 -->
-    <button id="vtoButton" class="button" data-target-vto="<iframe id='fitmixIframe' width='100%' height='100%' allow='camera' src='https://static.fittingbox.com/vtoadv/demo/fittingboxwebsite/index.html?glassesids=728243,613102' scrolling='no' frameborder='0' style='position: absolute; inset: 0px;'></iframe>">
-        TRY
-    </button>
-</div>
+    <h2>تجربة النظارات الافتراضية</h2>
+    
+    <div id="fitmixContainer"></div>
 
-<div id="virtual-try-on"></div>
+    <h3>اختر نظارة:</h3>
+    <div class="catalogContainer"></div>
 
-<script>
-    // إضافة حدث النقر للزر
-    document.getElementById('vtoButton').addEventListener('click', function() {
-        // استخراج محتوى الـ iframe من data attribute
-        var iframeContent = this.getAttribute('data-target-vto');
-        // إدراج محتوى الـ iframe داخل العنصر المخصص
-        var container = document.getElementById('virtual-try-on');
-        container.innerHTML = iframeContent;
-        // إظهار الحاوية
-        container.style.display = 'block';
-    });
-</script>
+    <script>
+        var apiKey = "CfM4xcxR5jcyUeyWn5734wcrfgQ5tEXqyYx1lLaf";
+
+        // استبدال الـ glassesId بالقيم الحقيقية من `FitMix`
+        var glassesList = [
+            { glassesId: "561446", image: "glass.png" },
+            { glassesId: "506066", image: "glass.png" },
+            { glassesId: "561262", image: "glass.png" },
+            { glassesId: "569044", image: "glass.png" },
+            { glassesId: "526099", image: "glass.png" },
+            { glassesId: "569037", image: "glass.png" }
+        ];
+
+        var fitmixInstance;
+
+        function init() {
+            fitmixInstance = FitMix.createWidget('fitmixContainer', {
+                apiKey: apiKey,
+                frameInfo: { id: glassesList[0].glassesId },
+                config: { preset: 'v8' }
+            });
+
+            renderGlassesCatalog();
+        }
+
+        function renderGlassesCatalog() {
+            var catalogContainer = document.querySelector('.catalogContainer');
+            glassesList.forEach(glass => {
+                var frameEntry = document.createElement('div');
+                frameEntry.classList.add('frameEntry');
+
+                var img = document.createElement('img');
+                img.classList.add('imageQuarter');
+                img.src = glass.image; // استخدام الصور المخزنة محليًا
+
+                var buttonTryOn = document.createElement('div');
+                buttonTryOn.classList.add('buttonTryOn');
+                buttonTryOn.textContent = "جرب الآن";
+
+                frameEntry.appendChild(img);
+                frameEntry.appendChild(buttonTryOn);
+                catalogContainer.appendChild(frameEntry);
+
+                frameEntry.onclick = function() {
+                    setFrame(glass.glassesId);
+                };
+            });
+        }
+
+        function setFrame(glassesId) {
+            fitmixInstance.setFrameInfo({ id: glassesId });
+        }
+
+        window.onload = init;
+    </script>
 
 </body>
 </html>
