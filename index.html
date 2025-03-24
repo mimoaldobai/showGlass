@@ -1,125 +1,145 @@
 <!DOCTYPE html>
-<html lang="ar">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>تجربة النظارات الافتراضية</title>
-    <script src="https://cdn.fittingbox.com/fitmix/latest/fitmix.js"></script>
+    <title>Web AR - FittingBox Simulation</title>
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            text-align: center;
-            background-color: #f8f8f8;
-        }
-        #fitmixContainer {
-            width: 100%;
-            height: 400px;
-            background: #ddd;
-            margin: 20px auto;
-        }
-        .catalogContainer {
-            display: flex;
-            overflow-x: auto;
-            padding: 10px;
-            background: #fff;
-        }
-        .frameEntry {
-            margin: 10px;
-            cursor: pointer;
-            text-align: center;
-        }
-        .imageQuarter {
-            width: 120px;
-            height: auto;
-            border-radius: 10px;
-        }
-        .buttonTryOn {
-            background: #007bff;
-            color: white;
-            padding: 5px 10px;
-            margin-top: 5px;
-            border-radius: 5px;
-            cursor: pointer;
-        }
+        body { margin: 0; font-family: Arial, sans-serif; }
+        canvas { display: block; }
+        video { display: none; }
+        #status { position: fixed; top: 10px; left: 10px; background: rgba(0, 0, 0, 0.7); color: white; padding: 5px; }
     </style>
 </head>
 <body>
 
-    <h2>تجربة النظارات الافتراضية</h2>
-    
-    <div id="fitmixContainer"></div>
+<!-- فيديو كاميرا الويب -->
+<video id="video" width="640" height="480" style="display: none;"></video>
 
-    <h3>اختر نظارة:</h3>
-    <div class="catalogContainer"></div>
+<!-- حالة التعرف على الوجه -->
+<div id="status">Status: Waiting for face...</div>
 
-    <script>
-        var apiKey = "CfM4xcxR5jcyUeyWn5734wcrfgQ5tEXqyYx1lLaf";
-        var glassesIdList = [
-            { glassesId: '561446' },
-            { glassesId: '506066' },
-            { glassesId: '561262' },
-            { glassesId: '569044' },
-            { glassesId: '526099' },
-            { glassesId: '569037' }
-        ];
+<!-- مكتبات JS -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@0.3/face_mesh.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-core@3.3.0/dist/tf-core.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.3.0/dist/tf.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils@0.3/camera_utils.js"></script>
 
-        var fitmixInstance;
-        var currentGlasses = 0;
+<script>
+    let scene, camera, renderer, faceMesh, videoElement, model, loader;
+    let faceDetected = false; // حالة التعرف على الوجه
+    let detectionStartTime = 0; // توقيت بداية الكشف عن الوجه
+    const detectionThreshold = 2000; // مدة الزمن التي نعتبر بعدها الوجه تم التعرف عليه بشكل صحيح (بالملي ثانية)
 
-        function init() {
-            fitmixInstance = FitMix.createWidget('fitmixContainer', {
-                apiKey: apiKey,
-                frameInfo: { id: glassesIdList[0].glassesId },
-                config: { preset: 'v8' },
-                onSwipe: function(data) {
-                    if (data.direction === 'left') nextGlasses();
-                    else previousGlasses();
-                }
-            });
+    // إعداد مشهد Three.js
+    function initThreeJS() {
+        scene = new THREE.Scene();
+        camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        renderer = new THREE.WebGLRenderer();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
 
-            renderGlassesCatalog();
+        // تحميل النموذج ثلاثي الأبعاد GLB
+        loader = new THREE.GLTFLoader();
+        loader.load('glass1.glb', function(gltf) {
+            model = gltf.scene;
+            scene.add(model);
+            // ضبط الحجم بشكل مناسب
+            model.scale.set(0.1, 0.1, 0.1); // تغيير الحجم حسب الحاجة
+            model.position.z = -1; // وضع النظارات أمام الكاميرا
+        });
+    }
+
+    // إعداد الفيديو والكاميرا
+    function setupCamera() {
+        videoElement = document.getElementById('video');
+        const cameraInstance = new Camera(videoElement, {
+            onFrame: async () => {
+                await detectFace();
+            },
+            width: 640,
+            height: 480
+        });
+        cameraInstance.start();
+    }
+
+    // إعداد Mediapipe FaceMesh
+    async function setupFaceMesh() {
+        faceMesh = new FaceMesh.FaceMesh({
+            locateFile: (file) => {
+                return `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@0.3/${file}`;
+            }
+        });
+        faceMesh.setOptions({
+            maxNumFaces: 1,
+            minDetectionConfidence: 0.5,
+            minTrackingConfidence: 0.5
+        });
+
+        faceMesh.onResults(onFaceResults);
+    }
+
+    // معالجة نتائج الكشف عن الوجه
+    function onFaceResults(results) {
+        if (results.multiFaceLandmarks) {
+            const landmarks = results.multiFaceLandmarks[0];
+            const nose = landmarks[1]; // نقطة الأنف في FaceMesh
+            const leftEye = landmarks[33]; // نقطة العين اليسرى في FaceMesh
+            const rightEye = landmarks[133]; // نقطة العين اليمنى في FaceMesh
+
+            // إذا تم اكتشاف الوجه
+            if (!faceDetected) {
+                faceDetected = true;
+                detectionStartTime = Date.now(); // بدء عد الوقت
+                document.getElementById('status').innerText = 'Status: Face detected!';
+            }
+
+            // إذا تم اكتشاف الوجه وتحققنا من المدة
+            const elapsedTime = Date.now() - detectionStartTime;
+            if (elapsedTime > detectionThreshold) {
+                // يمكن تنفيذ العملية هنا عندما يتعرف النظام على الوجه لفترة كافية
+                document.getElementById('status').innerText = 'Status: Face recognized successfully for AR experience!';
+            }
+
+            if (model) {
+                // تعيين موضع النظارات حسب إحداثيات الأنف أو الأعين
+                model.position.x = (nose.x - 0.5) * 2; // تحويل المدى من [0,1] إلى [-1, 1]
+                model.position.y = (0.5 - nose.y) * 2; // تحويل المدى من [0,1] إلى [-1, 1]
+                model.rotation.z = Math.atan2(rightEye.y - leftEye.y, rightEye.x - leftEye.x);
+            }
+        } else {
+            if (faceDetected) {
+                faceDetected = false;
+                document.getElementById('status').innerText = 'Status: Waiting for face...';
+            }
         }
+    }
 
-        function renderGlassesCatalog() {
-            var catalogContainer = document.querySelector('.catalogContainer');
-            glassesIdList.forEach(frameData => {
-                var frameEntry = document.createElement('div');
-                frameEntry.classList.add('frameEntry');
+    // اكتشاف الوجه
+    async function detectFace() {
+        const input = videoElement;
+        faceMesh.send({image: input});
+    }
 
-                var img = document.createElement('img');
-                img.classList.add('imageQuarter');
-                img.src = frameData.glassesId + ".png"; // تحميل الصورة من نفس المجلد
+    // تحديث الشاشة
+    function animate() {
+        requestAnimationFrame(animate);
+        renderer.render(scene, camera);
+    }
 
-                var buttonTryOn = document.createElement('div');
-                buttonTryOn.classList.add('buttonTryOn');
-                buttonTryOn.textContent = "جرب الآن";
+    // البدء في كل شيء
+    function start() {
+        initThreeJS();
+        setupCamera();
+        setupFaceMesh();
+        animate();
+    }
 
-                frameEntry.appendChild(img);
-                frameEntry.appendChild(buttonTryOn);
-                catalogContainer.appendChild(frameEntry);
+    // بدء التشغيل عند تحميل الصفحة
+    window.onload = start;
 
-                frameEntry.onclick = function() {
-                    setFrame(frameData);
-                };
-            });
-        }
-
-        function setFrame(frameData) {
-            fitmixInstance.setFrameInfo({ id: frameData.glassesId });
-        }
-
-        function nextGlasses() {
-            currentGlasses = (currentGlasses + 1) % glassesIdList.length;
-            setFrame(glassesIdList[currentGlasses]);
-        }
-
-        function previousGlasses() {
-            currentGlasses = (currentGlasses - 1 + glassesIdList.length) % glassesIdList.length;
-            setFrame(glassesIdList[currentGlasses]);
-        }
-
-        window.onload = init;
-    </script>
+</script>
 
 </body>
 </html>
