@@ -38,7 +38,7 @@
 
             // تحميل النموذج ثلاثي الأبعاد (GLB)
             const loader = new THREE.GLTFLoader();
-            loader.load('glasses.glb', function (gltf) {
+            loader.load('glass1.glb', function (gltf) {
                 model = gltf.scene;
                 model.scale.set(0.1, 0.1, 0.1);
                 scene.add(model);
