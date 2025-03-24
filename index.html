@@ -1,64 +1,86 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ar">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Virtual Glasses Try-On</title>
+    <title>تجربة النظارات الافتراضية</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-core"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils"></script>
     <script src="https://cdn.jsdelivr.net/npm/three/examples/js/loaders/GLTFLoader.js"></script>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #000;
+            color: white;
+            font-family: Arial, sans-serif;
+        }
+        video {
+            position: absolute;
+            transform: scaleX(-1); /* عكس الفيديو لمزامنة الوجه */
+            opacity: 0.5;
+        }
+        #status {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+    </style>
 </head>
-<body style="margin: 0; overflow: hidden;">
-
-    <video id="video" width="640" height="480" autoplay playsinline style="position: fixed; top: 10px; left: 10px; border: 2px solid red;"></video>
-    <canvas id="canvas"></canvas>
-    <div id="status" style="position: fixed; top: 10px; right: 10px; background: black; color: white; padding: 10px; font-size: 18px;">
-        Status: Waiting for face
-    </div>
-
+<body>
+    <video id="video" autoplay playsinline></video>
+    <div id="status">Status: Waiting for face</div>
     <script>
-        let scene, camera, renderer, model, video, mesh, faceMesh;
+        let scene, camera, renderer, model;
         let startTime = null;
 
-        function initThreeJS() {
+        // إعداد Three.js
+        function initScene() {
             scene = new THREE.Scene();
-            camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
-            renderer = new THREE.WebGLRenderer({ canvas: document.getElementById("canvas"), alpha: true });
+            camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(0, 0, 2);
+
+            renderer = new THREE.WebGLRenderer({ alpha: true });
             renderer.setSize(window.innerWidth, window.innerHeight);
             document.body.appendChild(renderer.domElement);
 
-            // إضافة إضاءة
-            const light = new THREE.AmbientLight(0xffffff, 1);
-            scene.add(light);
-
-            camera.position.set(0, 0, 1);
-
-            // تحميل النموذج ثلاثي الأبعاد (GLB)
+            // تحميل نموذج النظارات
             const loader = new THREE.GLTFLoader();
             loader.load('glass1.glb', function (gltf) {
                 model = gltf.scene;
-                model.scale.set(0.1, 0.1, 0.1);
+                model.scale.set(1.5, 1.5, 1.5); // ضبط الحجم
                 scene.add(model);
-                console.log("Model Loaded Successfully");
-            }, undefined, function (error) {
-                console.error("Error Loading Model:", error);
             });
+
+            animate();
         }
 
-        async function initFaceMesh() {
-            video = document.getElementById("video");
-            navigator.mediaDevices.getUserMedia({ video: true })
-                .then((stream) => {
-                    video.srcObject = stream;
-                })
-                .catch((err) => console.error("Camera Error:", err));
+        // تشغيل الرسم المتحرك
+        function animate() {
+            requestAnimationFrame(animate);
+            renderer.render(scene, camera);
+        }
 
-            faceMesh = new FaceMesh({
+        // إعداد Mediapipe FaceMesh
+        async function startFaceTracking() {
+            const video = document.getElementById("video");
+            const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+            video.srcObject = stream;
+
+            const faceMesh = new FaceMesh({
                 locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`
             });
+
             faceMesh.setOptions({
                 maxNumFaces: 1,
                 refineLandmarks: true,
@@ -75,9 +97,11 @@
                 width: 640,
                 height: 480
             });
+
             camera.start();
         }
 
+        // عند العثور على الوجه
         function onFaceResults(results) {
             if (!results.multiFaceLandmarks || results.multiFaceLandmarks.length === 0) {
                 document.getElementById("status").innerText = "Status: Waiting for face";
@@ -90,37 +114,30 @@
             }
 
             const elapsedTime = ((performance.now() - startTime) / 1000).toFixed(2);
-
             document.getElementById("status").innerText = `Status: Face Detected! Time: ${elapsedTime}s`;
 
             const faceLandmarks = results.multiFaceLandmarks[0];
 
-            // نقاط النظارات
+            // نقاط العين والأنف
             const leftEye = faceLandmarks[33];
             const rightEye = faceLandmarks[263];
             const nose = faceLandmarks[1];
 
-            // حساب موقع النظارات
-            const x = (leftEye.x + rightEye.x) / 2 - 0.5;
-            const y = -((leftEye.y + rightEye.y) / 2 - 0.5);
-            const z = -((leftEye.z + rightEye.z) / 2);
+            // حساب موضع النظارات
+            const x = ((leftEye.x + rightEye.x) / 2 - 0.5) * 2;
+            const y = -((leftEye.y + rightEye.y) / 2 - 0.5) * 2;
+            const z = -((leftEye.z + rightEye.z) / 2) - 2;
 
+            // تحريك النظارات
             if (model) {
-                model.position.set(x, y, z - 1);
+                model.position.set(x, y, z);
+                model.rotation.set(0, 0, 0); // تجنب الدوران العشوائي
             }
         }
 
-        function animate() {
-            requestAnimationFrame(animate);
-            renderer.render(scene, camera);
-        }
-
-        window.onload = function () {
-            initThreeJS();
-            initFaceMesh();
-            animate();
-        };
+        // بدء التطبيق
+        initScene();
+        startFaceTracking();
     </script>
-
 </body>
 </html>
