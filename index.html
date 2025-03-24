@@ -54,24 +54,27 @@
 
     <script>
         var apiKey = "CfM4xcxR5jcyUeyWn5734wcrfgQ5tEXqyYx1lLaf";
-
-        // استبدال الـ glassesId بالقيم الحقيقية من `FitMix`
-        var glassesList = [
-            { glassesId: "561446", image: "glass.png" },
-            { glassesId: "506066", image: "glass.png" },
-            { glassesId: "561262", image: "glass.png" },
-            { glassesId: "569044", image: "glass.png" },
-            { glassesId: "526099", image: "glass.png" },
-            { glassesId: "569037", image: "glass.png" }
+        var glassesIdList = [
+            { glassesId: '561446' },
+            { glassesId: '506066' },
+            { glassesId: '561262' },
+            { glassesId: '569044' },
+            { glassesId: '526099' },
+            { glassesId: '569037' }
         ];
 
         var fitmixInstance;
+        var currentGlasses = 0;
 
         function init() {
             fitmixInstance = FitMix.createWidget('fitmixContainer', {
                 apiKey: apiKey,
-                frameInfo: { id: glassesList[0].glassesId },
-                config: { preset: 'v8' }
+                frameInfo: { id: glassesIdList[0].glassesId },
+                config: { preset: 'v8' },
+                onSwipe: function(data) {
+                    if (data.direction === 'left') nextGlasses();
+                    else previousGlasses();
+                }
             });
 
             renderGlassesCatalog();
@@ -79,13 +82,13 @@
 
         function renderGlassesCatalog() {
             var catalogContainer = document.querySelector('.catalogContainer');
-            glassesList.forEach(glass => {
+            glassesIdList.forEach(frameData => {
                 var frameEntry = document.createElement('div');
                 frameEntry.classList.add('frameEntry');
 
                 var img = document.createElement('img');
                 img.classList.add('imageQuarter');
-                img.src = glass.image; // استخدام الصور المخزنة محليًا
+                img.src = frameData.glassesId + ".png"; // تحميل الصورة من نفس المجلد
 
                 var buttonTryOn = document.createElement('div');
                 buttonTryOn.classList.add('buttonTryOn');
@@ -96,13 +99,23 @@
                 catalogContainer.appendChild(frameEntry);
 
                 frameEntry.onclick = function() {
-                    setFrame(glass.glassesId);
+                    setFrame(frameData);
                 };
             });
         }
 
-        function setFrame(glassesId) {
-            fitmixInstance.setFrameInfo({ id: glassesId });
+        function setFrame(frameData) {
+            fitmixInstance.setFrameInfo({ id: frameData.glassesId });
+        }
+
+        function nextGlasses() {
+            currentGlasses = (currentGlasses + 1) % glassesIdList.length;
+            setFrame(glassesIdList[currentGlasses]);
+        }
+
+        function previousGlasses() {
+            currentGlasses = (currentGlasses - 1 + glassesIdList.length) % glassesIdList.length;
+            setFrame(glassesIdList[currentGlasses]);
         }
 
         window.onload = init;
